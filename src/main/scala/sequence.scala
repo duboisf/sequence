@@ -10,30 +10,53 @@ import javax.imageio.ImageIO
 import scala.collection.mutable.ListBuffer
 
 trait Drawable {
+  private var savedColor: Color = Color.BLACK
+  private var savedStroke: Stroke = new BasicStroke(1.0f)
+  val g: Graphics2D
+
   def draw(): Unit
+
+  protected def saveState() {
+    savedColor = g.getColor
+    savedStroke = g.getStroke
+  }
+
+  private def restoreState() {
+    g.setColor(savedColor)
+    g.setStroke(savedStroke)
+  }
+
+  protected def withPreservedState(body: => Unit) {
+    saveState
+    body
+    restoreState
+  }
 }
 
-class ObjectInstance (val name: String, val x: Int, val y: Int, val g: Graphics2D) extends Drawable {
+class ObjectInstance (val name: String, val left: Int, val top: Int, val g: Graphics2D) extends Drawable {
   import ObjectInstance._
   private val metrics = g.getFontMetrics(Canvas.font)
-  val height = metrics.getAscent
-  val width = metrics.stringWidth(name)
+  private val stringHeight = metrics.getAscent
+  private val stringWidth = metrics.stringWidth(name)
+  val height = stringHeight + strHeightPad
+  val width = stringWidth + strWidthPad
   private val messages = new ListBuffer[Message]()
 
   override def draw() {
-    val oldColor = g.getColor
-    val stroke = g.getStroke
-    val objectStroke = new BasicStroke(3.0f)
-    g.setStroke(objectStroke)
-    val box = new RoundRectangle2D.Double(x, y, width + strWidthPad, height + strHeightPad, 0, 0)
-    g.setColor(Color.WHITE)
-    g.fill(box)
-    g.setColor(Color.BLACK)
-    g.draw(box)
-    g.setColor(oldColor)
-    g.drawString(name, x + strWidthPad / 2, y + height + strHeightPad / 2)
-    g.setStroke(stroke)
+    withPreservedState {
+      val objectStroke = new BasicStroke(3.0f)
+      g.setStroke(objectStroke)
+      val box = new RoundRectangle2D.Double(left, top, width, height, 0, 0)
+      g.setColor(Color.WHITE)
+      g.fill(box)
+      g.setColor(Color.BLACK)
+      g.draw(box)
+      g.drawString(name, left + strWidthPad / 2, top + stringHeight + strHeightPad / 2)
+    }
   }
+
+  def middle = left + width / 2
+  def right = left + width
 
   def addMessage(msg: Message): Unit = messages += msg
 }
@@ -43,11 +66,27 @@ object ObjectInstance {
   private val strHeightPad = 20
 }
 
-class Message(val name: String, val x: Int, val y: Int, val to: ObjectInstance, val g: Graphics2D) extends Drawable {
+class Message(val name: String, val y: Int, val from: ObjectInstance, val to: ObjectInstance, val g: Graphics2D) extends Drawable {
 
   override def draw() {
-    g.draw(new Line2D.Double(x, y, to.x + to.width / 2, y))
+    withPreservedState {
+      drawArrowHead
+      g.setColor(Color.BLACK)
+      g.setStroke(new BasicStroke(3.0f))
+      g.draw(new Line2D.Double(from.middle, y, to.middle - 15, y))
+    }
   }
+
+  private def drawArrowHead() {
+    val xs = Array[Int](to.middle, to.middle - 15, to.middle - 15)
+    val ys = Array[Int](y, y - 10, y + 10)
+    val arrow = new Polygon(xs, ys, xs.length)
+    g.setStroke(new BasicStroke(1.0f))
+    g.setColor(Color.BLACK)
+    g.draw(arrow)
+    g.fill(arrow)
+  }
+
 }
 
 object Canvas {
@@ -71,8 +110,8 @@ class Canvas {
     g.setFont(font.deriveFont(map))
 
     val inst1 = new ObjectInstance("Sequence", 0, 0, g)
-    val inst2 = new ObjectInstance("Message", inst1.x + inst1.width + 30, 0, g)
-    val msg1 = new Message("draw", inst1.x + inst1.width / 2, inst1.y + inst1.height + 30, inst2, g)
+    val inst2 = new ObjectInstance("Message", inst1.left + inst1.width + 30, 0, g)
+    val msg1 = new Message("draw", inst1.top + inst1.height + 30, inst1, inst2, g)
     val l = scala.List(inst1, inst2, msg1)
     l.map(_.draw)
     ImageIO.write(buffIm, "PNG", new File("test2.png"))
