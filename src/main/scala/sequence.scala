@@ -73,13 +73,23 @@ class Message(val name: String, val y: Int, val from: ObjectInstance, val to: Ob
       drawArrowHead
       g.setColor(Color.BLACK)
       g.setStroke(new BasicStroke(3.0f))
-      g.draw(new Line2D.Double(from.middle, y, to.middle - 15, y))
+      val destination = 
+        if (from.left < to.left)
+          to.middle - 15
+        else 
+          to.middle + 15
+      g.draw(new Line2D.Double(from.middle, y, destination, y))
     }
   }
 
   private def drawArrowHead() {
-    val xs = Array[Int](to.middle, to.middle - 15, to.middle - 15)
-    val ys = Array[Int](y, y - 10, y + 10)
+    // Make arrow point right or left
+    val xs = 
+      if (from.left < to.left) 
+        Array(to.middle, to.middle - 15, to.middle - 15)
+      else 
+        Array(to.middle, to.middle + 15, to.middle + 15)
+    val ys = Array(y, y - 10, y + 10)
     val arrow = new Polygon(xs, ys, xs.length)
     g.setStroke(new BasicStroke(1.0f))
     g.setColor(Color.BLACK)
@@ -111,7 +121,7 @@ class Canvas {
 
     val inst1 = new ObjectInstance("Sequence", 0, 0, g)
     val inst2 = new ObjectInstance("Message", inst1.left + inst1.width + 30, 0, g)
-    val msg1 = new Message("draw", inst1.top + inst1.height + 30, inst1, inst2, g)
+    val msg1 = new Message("draw", inst1.top + inst1.height + 30, inst2, inst1, g)
     val l = scala.List(inst1, inst2, msg1)
     l.map(_.draw)
     ImageIO.write(buffIm, "PNG", new File("test2.png"))
