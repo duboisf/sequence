@@ -33,13 +33,16 @@ trait Drawable {
   }
 }
 
-class Instance(val name: String, val left: Int, val top: Int, val g: Graphics2D) extends Drawable {
-  import Instance._
+class Instance(val name: String, val x: Int, val y: Int, val g: Graphics2D) extends Drawable {
   private val metrics = g.getFontMetrics(Canvas.font)
   private val stringHeight = metrics.getAscent
   private val stringWidth = metrics.stringWidth(name)
-  val height = stringHeight + stringPadding * 2
-  val width = stringWidth + stringPadding * 2
+  val height = stringHeight + Theme.stringPadding * 2
+  val width = stringWidth + Theme.stringPadding * 2
+  val left = x - width / 2
+  val right = left + width
+  val top = y + height / 2
+  val bottom = top + height
 
   override def draw() {
     withPreservedState {
@@ -49,17 +52,9 @@ class Instance(val name: String, val left: Int, val top: Int, val g: Graphics2D)
       g.fill(box)
       g.setColor(Theme.foregroundColor)
       g.draw(box)
-      g.drawString(name, left + stringPadding, top + stringHeight + stringPadding)
+      g.drawString(name, left + Theme.stringPadding, top + stringHeight + Theme.stringPadding)
     }
   }
-
-  def middle = left + width / 2
-  def right = left + width
-}
-
-object Instance {
-  private val stringPadding = 20
-  private val strHeightPad = 20
 }
 
 object Direction extends Enumeration {
@@ -114,11 +109,11 @@ class ArrowMessage(
   import Direction._
 
   override def draw() {
-    val op = (x: Int, y: Int) => if (from.left < to.left) x - y else x + y
-    val x2 = if (from.left < to.left) to.middle - Theme.arrowLength else to.middle + Theme.arrowLength
-    drawLine(from.middle, y, op(to.middle, Theme.arrowLength), y)
-    val direction = if (from.left < to.left) East else West
-    drawArrowHead(to.middle, y, direction)
+    val op = (x: Int, y: Int) => if (from.x < to.x) x - y else x + y
+    val x2 = if (from.x < to.x) to.x - Theme.arrowLength else to.x + Theme.arrowLength
+    drawLine(from.x, y, op(to.x, Theme.arrowLength), y)
+    val direction = if (from.x < to.x) East else West
+    drawArrowHead(to.x, y, direction)
   }
 }
 
