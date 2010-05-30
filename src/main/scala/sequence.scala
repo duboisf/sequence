@@ -33,36 +33,32 @@ trait Drawable {
   }
 }
 
-class Instance (val name: String, val left: Int, val top: Int, val g: Graphics2D) extends Drawable {
+class Instance(val name: String, val left: Int, val top: Int, val g: Graphics2D) extends Drawable {
   import Instance._
   private val metrics = g.getFontMetrics(Canvas.font)
   private val stringHeight = metrics.getAscent
   private val stringWidth = metrics.stringWidth(name)
-  val height = stringHeight + strHeightPad
-  val width = stringWidth + strWidthPad
-  private val messages = new ListBuffer[Message]()
+  val height = stringHeight + stringPadding * 2
+  val width = stringWidth + stringPadding * 2
 
   override def draw() {
     withPreservedState {
-      val objectStroke = new BasicStroke(3.0f)
-      g.setStroke(objectStroke)
+      g.setStroke(Theme.lineStroke)
       val box = new RoundRectangle2D.Double(left, top, width, height, 0, 0)
-      g.setColor(Color.WHITE)
+      g.setColor(Theme.backgroundColor)
       g.fill(box)
-      g.setColor(Color.BLACK)
+      g.setColor(Theme.foregroundColor)
       g.draw(box)
-      g.drawString(name, left + strWidthPad / 2, top + stringHeight + strHeightPad / 2)
+      g.drawString(name, left + stringPadding, top + stringHeight + stringPadding)
     }
   }
 
   def middle = left + width / 2
   def right = left + width
-
-  def addMessage(msg: Message): Unit = messages += msg
 }
 
 object Instance {
-  private val strWidthPad = 20
+  private val stringPadding = 20
   private val strHeightPad = 20
 }
 
@@ -133,6 +129,7 @@ object Theme {
   val backgroundColor = Color.WHITE
   val foregroundColor = Color.BLACK
   val font = new Font("Arial", Font.TRUETYPE_FONT, 20)
+  val stringPadding = 10
 }
 
 object Canvas {
