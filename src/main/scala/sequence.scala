@@ -33,15 +33,15 @@ trait Drawable {
   }
 }
 
-class Instance(val name: String, val x: Int, val y: Int, val g: Graphics2D) extends Drawable {
-  private val metrics = g.getFontMetrics(Canvas.font)
-  private val stringHeight = metrics.getAscent
-  private val stringWidth = metrics.stringWidth(name)
+class Instance(val name: String, val left: Int, val top: Int, val g: Graphics2D) extends Drawable {
+  import Canvas.Theme
+  private val stringHeight = Theme.instanceMetrics.getAscent
+  private val stringWidth = Theme.instanceMetrics.stringWidth(name)
   val height = stringHeight + Theme.stringPadding * 2
   val width = stringWidth + Theme.stringPadding * 2
-  val left = x - width / 2
+  val x = left + width / 2
+  val y = top + height / 2
   val right = left + width
-  val top = y + height / 2
   val bottom = top + height
 
   override def draw() {
@@ -63,16 +63,18 @@ object Direction extends Enumeration {
 }
 
 abstract class Message extends Drawable {
+  import Direction._
+  import Canvas.Theme
+
   val name: String
-  val y: Int
+  val top: Int
   val from: Instance
   val to: Instance
   val g: Graphics2D
-
-  import Direction._
+  val y: Int
 
   protected def drawText(s: String, x: Int, y: Int) {
-
+    
   }
 
   protected def drawLine(x1: Int, y1: Int, x2: Int, y2: Int) {
@@ -100,13 +102,15 @@ abstract class Message extends Drawable {
 
 class ArrowMessage(
   val name: String,
-  val y: Int,
+  val top: Int,
   val from: Instance,
   val to: Instance,
   val g: Graphics2D
 ) extends Message {
-
   import Direction._
+  import Canvas.Theme
+
+  val y = top + (Theme.messageMetrics.getAscent + Theme.stringPadding) / 2
 
   override def draw() {
     val op = (x: Int, y: Int) => if (from.x < to.x) x - y else x + y
@@ -117,49 +121,44 @@ class ArrowMessage(
   }
 }
 
-object Theme {
-  val arrowLength = 15
-  val arrowHalfBaseWidth = 10
-  val lineStroke = new BasicStroke(3.0f)
-  val backgroundColor = Color.WHITE
-  val foregroundColor = Color.BLACK
-  val font = new Font("Arial", Font.TRUETYPE_FONT, 20)
-  val stringPadding = 10
-}
-
 object Canvas {
-  val gradient = new GradientPaint(0, 0, Color.BLUE, 200, 100, Color.WHITE);
-  val font = new Font("Arial", Font.TRUETYPE_FONT, 20)
-}
+  private val bufferedImage = new BufferedImage(400, 400, BufferedImage.TYPE_INT_ARGB)
+  val g = bufferedImage.createGraphics()
 
-class Canvas {
-
-  import Canvas._
+  object Theme {
+    val arrowLength = 15
+    val arrowHalfBaseWidth = 10
+    val lineStroke = new BasicStroke(3.0f)
+    val backgroundColor = Color.WHITE
+    val foregroundColor = Color.BLACK
+    val instanceFont = new Font("Arial", Font.TRUETYPE_FONT, 20)
+    val messageFont = new Font("Arial", Font.TRUETYPE_FONT, 20)
+    val stringPadding = 10
+    val instanceMetrics = g.getFontMetrics(instanceFont)
+    val messageMetrics = g.getFontMetrics(messageFont)
+  }
 
   def draw() {
-    val buffIm = new BufferedImage(400, 400, BufferedImage.TYPE_INT_ARGB)
-    val g = buffIm.createGraphics()
 
     g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
 
     val map = new Hashtable[TextAttribute, Object]()
     map.put(TextAttribute.FOREGROUND, Color.BLACK);
     
-    g.setFont(font.deriveFont(map))
+    g.setFont(Theme.instanceFont.deriveFont(map))
 
-    val inst1 = new Instance("Sequence", 0, 0, g)
-    val inst2 = new Instance("Message", inst1.left + inst1.width + 30, 0, g)
-    val msg1 = new ArrowMessage("draw", inst1.top + inst1.height + 30, inst2, inst1, g)
+    val inst1 = new Instance("Sequence", 10, 10, g)
+    val inst2 = new Instance("Message", inst1.right + 30, 10, g)
+    val msg1 = new ArrowMessage("draw", inst1.bottom + 30, inst2, inst1, g)
     val l = scala.List(inst1, inst2, msg1)
     l.map(_.draw)
-    ImageIO.write(buffIm, "PNG", new File("test2.png"))
+    ImageIO.write(bufferedImage, "PNG", new File("test2.png"))
   }
 }
 
 object Sequence {
   def main(args: Array[String]) {
-    val canvas = new Canvas
-    canvas.draw()
+    Canvas.draw()
   }
 }
 
