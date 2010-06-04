@@ -8,6 +8,7 @@ import java.awt.geom._
 import java.io.File
 import javax.imageio.ImageIO
 import scala.collection.mutable.ListBuffer
+import scala.util.parsing.combinator._
 
 trait Drawable {
   val g: Graphics2D
@@ -175,11 +176,20 @@ object SequenceDiagram {
   }
 }
 
-object Sequence {
+class SequenceDiagramParser extends RegexParsers {
+  def objInstance: Parser[Any] = regex("\\w+".r)
+  def message: Parser[Any] = regex("(.+\\s*)+".r)
+  def expression: Parser[Any] = (objInstance ~ "->" ~ objInstance ~ ':' ~ message) ^^ {
+    case obj1 ~ arrow ~ obj2 ~ colon ~ msg => obj1 :: obj2 :: msg :: Nil
+  }
+}
+
+object Sequence extends SequenceDiagramParser {
   def main(args: Array[String]) {
     Canvas.draw()
     println("TEST")
     SequenceDiagram.fromFile("simple.seq")
+    println(parseAll(expression, "something -> other: test this!"))
   }
 }
 
