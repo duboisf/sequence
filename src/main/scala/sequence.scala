@@ -2,12 +2,13 @@ package sequence
 
 import java.util.Hashtable
 import java.awt.image.BufferedImage
-import java.awt._
+import java.awt.{Graphics2D, Font, BasicStroke, Polygon, Color, RenderingHints}
 import java.awt.font._
 import java.awt.geom._
 import java.io.File
 import javax.imageio.ImageIO
 import scala.collection.mutable.ListBuffer
+import scala.io.Source
 import scala.util.parsing.combinator._
 
 trait Drawable {
@@ -119,18 +120,6 @@ class ArrowMessage(
   }
 }
 
-//class CreateMessage(
-//  val name: String,
-//  val top: Int,
-//  val from: Instance,
-//  val to: Instance,
-//  val g: Graphics2D
-//) extends Message {
-//  import Direction._
-//  import Canvas.Theme
-//
-//}
-
 object Canvas {
   private val bufferedImage = new BufferedImage(400, 400, BufferedImage.TYPE_INT_ARGB)
   val g = bufferedImage.createGraphics()
@@ -171,15 +160,16 @@ object SequenceDiagram {
   import scala.util.parsing.combinator._
 
   def fromFile(filename: String) {
-    val source = scala.io.Source.fromFile(filename)
+    val source = Source.fromFile(new File(filename))
     source.getLines.foreach(printf("%s", _))
   }
 }
 
 class SequenceDiagramParser extends RegexParsers {
-  def objInstance: Parser[Any] = regex("\\w+".r)
-  def message: Parser[Any] = regex("(.+\\s*)+".r)
-  def expression: Parser[Any] = (objInstance ~ "->" ~ objInstance ~ ':' ~ message) ^^ {
+
+  def obj: Parser[String] = regex("\\w+".r)
+  def message: Parser[String] = regex("(.+\\s*)+".r)
+  def expression: Parser[List[String]] = (obj ~ "->" ~ obj ~ ':' ~ message) ^^ {
     case obj1 ~ arrow ~ obj2 ~ colon ~ msg => obj1 :: obj2 :: msg :: Nil
   }
 }
@@ -187,9 +177,12 @@ class SequenceDiagramParser extends RegexParsers {
 object Sequence extends SequenceDiagramParser {
   def main(args: Array[String]) {
     Canvas.draw()
-    println("TEST")
-    SequenceDiagram.fromFile("simple.seq")
-    println(parseAll(expression, "something -> other: test this!"))
+    //SequenceDiagram.fromFile("simple.seq")
+    val tokens = parseAll(expression, "something -> other: test this!") match {
+      case result if result.successful => result.get
+      case _ => throw new Exception("Error parsing expression")
+    }
+    tokens map println
   }
 }
 
