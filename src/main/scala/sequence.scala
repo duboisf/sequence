@@ -171,11 +171,9 @@ object SequenceDiagram {
     source.getLines.foreach(line => dispatchResult(parser.run(line)))
   }
 
-  private def dispatchResult(parserResult: ParseResult[ParsedExpression]) {
-    if (!parserResult.successful)
-      return
+  private def dispatchResult(parserResult: ParsedExpression) {
     parserResult match {
-      case ParsedMessage(src, msg, dest) => {
+      case ParsedArrowMessage(src, msg, dest) => {
         val srcInstance = getInstance(src)
         val destInstance = getInstance(dest)
         messages += new ArrowMessage(msg, messageY, srcInstance, destInstance, Canvas.g)
@@ -197,17 +195,21 @@ object SequenceDiagram {
 
 abstract sealed class ParsedExpression
 
-case class ParsedMessage(val src: String, val msg: String, val dest: String) extends ParsedExpression
+case class ParsedArrowMessage(val src: String, val msg: String, val dest: String) extends ParsedExpression
 
 class Parser extends RegexParsers {
 
   def instance: Parser[String] = regex("\\w+".r)
   def message: Parser[String] = regex("(.+\\s*)+".r)
   def expression: Parser[ParsedExpression] = (instance ~ "->" ~ instance ~ ':' ~ message) ^^ {
-    case src ~ arrow ~ dest ~ colon ~ msg => ParsedMessage(src, msg, dest)
+    case src ~ arrow ~ dest ~ colon ~ msg => ParsedArrowMessage(src, msg, dest)
   }
 
-  def run(input: String) = parseAll(expression, input)
+  def run(input: String): ParsedExpression = parseAll(expression, input) match {
+    case Success(result, _) => result
+    case Failure(msg, _) => throw new Exception("Parsing failure: " + msg)
+    case Error(msg, _) => throw new Exception("Parsing error: " + msg)
+  }
 }
 
 object Sequence extends Parser {
