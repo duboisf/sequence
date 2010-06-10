@@ -7,7 +7,7 @@ import java.awt.font._
 import java.awt.geom._
 import java.io.File
 import javax.imageio.ImageIO
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{Map, ListBuffer, HashMap}
 import scala.io.Source
 import scala.util.parsing.combinator._
 
@@ -63,7 +63,9 @@ abstract class Message extends Drawable {
   val to: Instance
   val g: Graphics2D
   val width: Int
-  val y = top + (Theme.messageMetrics.getAscent + Theme.messageStringPadding) / 2
+  val height: Int
+  val bottom = top + height
+  val y = top + height / 2
   val left = if (from.x < to.x) from.x else to.x
   val x = left + Math.abs(from.x - to.x) / 2
 
@@ -106,6 +108,7 @@ class ArrowMessage(
   import Canvas.Theme
 
   val width = Math.abs(to.x - from.x)
+  val height = Theme.messageMetrics.getAscent + Theme.messageStringPadding
 
   override def draw() {
     val op = (x: Int, y: Int) => if (from.x < to.x) x - y else x + y
@@ -157,32 +160,65 @@ object Canvas {
 }
 
 object SequenceDiagram {
-  import scala.util.parsing.combinator._
+  private val instances:Map[String, Instance] = new HashMap[String, Instance]()
+  private val messages = new ListBuffer[Message]()
+  private var instanceX = 10
+  private var messageY = 30
 
   def fromFile(filename: String) {
     val source = Source.fromFile(new File(filename))
-    source.getLines.foreach(printf("%s", _))
+    val parser = new Parser
+    source.getLines.foreach(line => dispatchResult(parser.run(line)))
+  }
+
+  private def dispatchResult(parserResult: ParseResult[ParsedExpression]) {
+    if (!parserResult.successful)
+      return
+    parserResult match {
+      case ParsedMessage(src, msg, dest) => {
+        val srcInstance = getInstance(src)
+        val destInstance = getInstance(dest)
+        messages += new ArrowMessage(msg, messageY, srcInstance, destInstance, Canvas.g)
+        messageY += messages.last.bottom
+      }
+    }
+  }
+
+  private def getInstance(name: String): Instance = {
+    if (!instances.contains(name))
+    {
+      val instance = new Instance(name, instanceX, 10, Canvas.g)
+      instanceX += instance.right + 10
+      instances(name) = instance
+      instance
+    } else instances(name)
   }
 }
 
-class SequenceDiagramParser extends RegexParsers {
+abstract sealed class ParsedExpression
 
-  def obj: Parser[String] = regex("\\w+".r)
+case class ParsedMessage(val src: String, val msg: String, val dest: String) extends ParsedExpression
+
+class Parser extends RegexParsers {
+
+  def instance: Parser[String] = regex("\\w+".r)
   def message: Parser[String] = regex("(.+\\s*)+".r)
-  def expression: Parser[List[String]] = (obj ~ "->" ~ obj ~ ':' ~ message) ^^ {
-    case obj1 ~ arrow ~ obj2 ~ colon ~ msg => obj1 :: obj2 :: msg :: Nil
+  def expression: Parser[ParsedExpression] = (instance ~ "->" ~ instance ~ ':' ~ message) ^^ {
+    case src ~ arrow ~ dest ~ colon ~ msg => ParsedMessage(src, msg, dest)
   }
+
+  def run(input: String) = parseAll(expression, input)
 }
 
-object Sequence extends SequenceDiagramParser {
+object Sequence extends Parser {
   def main(args: Array[String]) {
     Canvas.draw()
-    //SequenceDiagram.fromFile("simple.seq")
+    SequenceDiagram.fromFile("testInput.txt")
     val tokens = parseAll(expression, "something -> other: test this!") match {
-      case result if result.successful => result.get
+      case Success(result, _) => result
       case _ => throw new Exception("Error parsing expression")
     }
-    tokens map println
+    tokens
   }
 }
 
