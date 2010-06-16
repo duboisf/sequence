@@ -25,11 +25,18 @@ trait Drawable {
   }
 }
 
-class Instance(val name: String, var left: Int, var top: Int, val g: Graphics2D) extends Drawable {
-  import Canvas.Theme
+trait Named {
+  import SequenceDiagram.Theme
 
-  private def stringHeight = Theme.instanceMetrics.getAscent
-  private def stringWidth = Theme.instanceMetrics.stringWidth(name)
+  val name: String
+
+  val stringWidth = Theme.instanceMetrics.stringWidth(name)
+  val stringHeight = Theme.instanceMetrics.getAscent
+}
+
+class Instance(val name: String, var left: Int, var top: Int, val g: Graphics2D) extends Drawable with Named {
+  import SequenceDiagram.Theme
+
   def height = stringHeight + Theme.instanceStringPadding * 2
   def width = stringWidth + Theme.instanceStringPadding * 2
   def x = left + width / 2
@@ -46,6 +53,8 @@ class Instance(val name: String, var left: Int, var top: Int, val g: Graphics2D)
     g.draw(box)
     g.drawString(name, left + Theme.instanceStringPadding, top + stringHeight + Theme.instanceStringPadding)
   }
+
+  override def toString = name + "(left: " + left + ", top: " + top + ", width: " + width + ", height: " + height + ")"
 }
 
 object Direction extends Enumeration {
@@ -55,19 +64,21 @@ object Direction extends Enumeration {
 
 abstract class Message extends Drawable {
   import Direction._
-  import Canvas.Theme
+  import SequenceDiagram.Theme
 
   val name: String
   val top: Int
   val from: Instance
   val to: Instance
   val g: Graphics2D
-  val width: Int
   val height: Int
-  val bottom = top + height
-  val y = top + height / 2
-  val left = if (from.x < to.x) from.x else to.x
-  val x = left + Math.abs(from.x - to.x) / 2
+
+  def width: Int
+
+  def bottom = top + height
+  def x = left + Math.abs(from.x - to.x) / 2
+  def left = if (from.x < to.x) from.x else to.x
+  def y = top + height / 2
 
   protected def drawText(s: String, x: Int, y: Int) {
     g.setColor(Theme.foregroundColor)
@@ -95,6 +106,8 @@ abstract class Message extends Drawable {
     g.draw(arrow)
     g.fill(arrow)
   }
+
+  override def toString = from.name + " -> " + to.name + ": " + name + " (left: " + left + " top: " + top + ", width: " + width + ", height: " + height + ")"
 }
 
 class ArrowMessage(
@@ -103,14 +116,17 @@ class ArrowMessage(
   val from: Instance,
   val to: Instance,
   val g: Graphics2D
-) extends Message {
+) extends Message with Named {
   import Direction._
-  import Canvas.Theme
+  import SequenceDiagram.Theme
 
-  val width = Math.abs(to.x - from.x)
+  def width = Math.abs(to.x - from.x)
   val height = Theme.messageMetrics.getAscent + Theme.messageStringPadding
 
   override def draw() {
+    if (stringWidth > width) {
+      to.left += stringWidth - width + 40
+    }
     val op = (x: Int, y: Int) => if (from.x < to.x) x - y else x + y
     val x2 = if (from.x < to.x) to.x - Theme.arrowLength else to.x + Theme.arrowLength
     val nameX = x - Theme.messageMetrics.stringWidth(name) / 2
@@ -123,7 +139,11 @@ class ArrowMessage(
   }
 }
 
-object Canvas {
+object SequenceDiagram {
+  private val instances: Map[String, Instance] = new HashMap[String, Instance]()
+  private val messages = new ListBuffer[Message]()
+  private var instanceX = 10
+  private var messageY = 60
   private val bufferedImage = new BufferedImage(400, 400, BufferedImage.TYPE_INT_ARGB)
   val g = bufferedImage.createGraphics()
 
@@ -142,7 +162,6 @@ object Canvas {
   }
 
   def draw() {
-
     g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
 
     val map = new Hashtable[TextAttribute, Object]()
@@ -150,25 +169,22 @@ object Canvas {
     
     g.setFont(Theme.instanceFont.deriveFont(map))
 
-    val inst1 = new Instance("Sequence", 10, 10, g)
-    val inst2 = new Instance("Message", inst1.right + 30, 10, g)
-    val msg1 = new ArrowMessage("draw", inst1.bottom + 10, inst2, inst1, g)
-    val l = scala.List(inst1, inst2, msg1)
-    l.map(_.draw)
+    messages map {
+      msg => {
+        println(msg)
+        msg.draw
+      }
+    }
+    instances foreach (t => println(t._2))
+    instances foreach (t => t._2.draw)
     ImageIO.write(bufferedImage, "PNG", new File("test2.png"))
   }
-}
-
-object SequenceDiagram {
-  private val instances:Map[String, Instance] = new HashMap[String, Instance]()
-  private val messages = new ListBuffer[Message]()
-  private var instanceX = 10
-  private var messageY = 30
 
   def fromFile(filename: String) {
     val source = Source.fromFile(new File(filename))
     val parser = new Parser
     source.getLines.foreach(line => dispatchResult(parser.run(line)))
+    messages map println
   }
 
   private def dispatchResult(parserResult: ParsedExpression) {
@@ -176,8 +192,8 @@ object SequenceDiagram {
       case ParsedArrowMessage(src, msg, dest) => {
         val srcInstance = getInstance(src)
         val destInstance = getInstance(dest)
-        messages += new ArrowMessage(msg, messageY, srcInstance, destInstance, Canvas.g)
-        messageY += messages.last.bottom
+        messages += new ArrowMessage(msg, messageY, srcInstance, destInstance, g)
+        messageY = messages.last.bottom + 20
       }
     }
   }
@@ -185,7 +201,7 @@ object SequenceDiagram {
   private def getInstance(name: String): Instance = {
     if (!instances.contains(name))
     {
-      val instance = new Instance(name, instanceX, 10, Canvas.g)
+      val instance = new Instance(name, instanceX, 10, g)
       instanceX += instance.right + 10
       instances(name) = instance
       instance
@@ -214,13 +230,13 @@ class Parser extends RegexParsers {
 
 object Sequence extends Parser {
   def main(args: Array[String]) {
-    Canvas.draw()
     SequenceDiagram.fromFile("testInput.txt")
+    SequenceDiagram.draw
     val tokens = parseAll(expression, "something -> other: test this!") match {
       case Success(result, _) => result
       case _ => throw new Exception("Error parsing expression")
     }
-    tokens
+    println(tokens)
   }
 }
 
